@@ -1,0 +1,36 @@
+[mysqld]
+# Основные настройки соединений
+max_connections = 1000
+max_connect_errors = 1000000
+max_allowed_packet = 256M
+
+# Таймауты соединений
+wait_timeout = 28800
+interactive_timeout = 28800
+net_read_timeout = 600
+net_write_timeout = 600
+connect_timeout = 60
+
+# Сетевые настройки
+net_buffer_length = 16K
+skip_name_resolve = ON
+
+# Кэши и производительность
+thread_cache_size = 100
+table_open_cache = 2000
+table_definition_cache = 1400
+innodb_buffer_pool_size = 512M
+
+# Логирование и диагностика
+log_warnings = 2
+slow_query_log = 1
+long_query_time = 2
+
+# InnoDB оптимизации
+innodb_flush_log_at_trx_commit = 2
+innodb_log_file_size = 128M
+innodb_log_buffer_size = 16M
+innodb_flush_method = O_DIRECT
+
+# Безопасность
+skip_name_resolve = ON

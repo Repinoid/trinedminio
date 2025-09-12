@@ -1,0 +1,141 @@
+
+services:
+  trino-coordinator:
+    image: 'trinodb/trino:latest'
+    hostname: trino-coordinator
+    container_name: trinoco
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./etc:/etc/trino
+    environment:
+      - TRINO_NODE_ID=trino-coordinator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      - hive-metastore
+        # condition: service_healthy
+    networks:
+      - localnet
+
+  mariadb:
+    image: 'mariamping'
+    # image: 'mariadb:latest'
+    hostname: mariadb
+    container_name: maria
+    ports:
+      - '3306:3306'
+    volumes:
+      - maria_volume:/var/lib/mysql
+      - ./mariam/maria.cnf:/etc/mysql/conf.d/maria.cnf:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: admin  
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_DATABASE: metastore_db
+      MYSQL_TCP_PORT: 3306
+    # healthcheck:
+    #   test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 15
+    #   start_period: 40s
+    networks:
+      - localnet
+
+  hive-metastore:
+    image: 'bitsondatadev/hive-metastore:latest'
+    hostname: hive-metastore
+    container_name: hive
+    ports:
+      - '9083:9083'
+    volumes:
+      - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+      - ./mariam/mariadb-java-client-3.5.6.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar:ro
+      - ./conf/hive-entrypoint.sh:/hive-entrypoint.sh:ro
+    environment:
+      METASTORE_DB_HOSTNAME: mariadb
+      DB_DRIVER: mariadb
+      DB_URL: jdbc:mariadb://mariadb:3306/metastore_db?useSSL=false&allowPublicKeyRetrieval=true&connectTimeout=30000
+      DB_USER: admin
+      DB_PASSWORD: admin
+      DB_PORT: 3306
+    entrypoint: ["/bin/sh", "/hive-entrypoint.sh"]
+    depends_on:
+      create-buckets:
+        condition: service_started
+      mariadb:
+        condition: service_started  # Или service_healthy, если у mariadb тоже есть healthcheck
+      minio:
+        condition: service_healthy  # ✅ Ждем, пока MinIO не станет здоров  
+    networks:
+      - localnet
+
+  minio:
+    image: 'minio/minio:latest'
+    hostname: minio
+    container_name: minio
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: mpassword
+      MINIO_SERVER_URL: http://minio:9000
+      # Add this to auto-create the bucket:
+      MINIO_DEFAULT_BUCKETS: hive
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    command: server --console-address ":9001" /data
+    networks:
+      - localnet
+
+  create-buckets:
+    image: minio/mc:latest
+    container_name: cr_tiny
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set myminio http://minio:9000 minio mpassword; do
+        echo 'Setting alias...'
+        sleep 2
+      done
+
+      if mc ls myminio/tiny > /dev/null 2>&1; then
+        echo 'Bucket tiny already exists'
+      else
+        mc mb myminio/tiny
+        echo 'Bucket tiny created'
+      fi
+
+      if mc ls myminio/hive > /dev/null 2>&1; then
+        echo 'Bucket hive already exists'
+      else
+        mc mb myminio/hive
+        echo 'Bucket hive created'
+      fi
+      "
+    depends_on:
+      - minio
+    networks:
+      - localnet      
+
+volumes:
+  minio-data:
+    driver: local
+  maria_volume:
+    driver: local
+
+networks:
+  localnet:
+    name: localnet
+    driver: bridge
