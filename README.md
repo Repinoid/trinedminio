@@ -66,7 +66,7 @@ this layer was commonly HDFS or other S3 compatible storage and AWS S3. For our
 example, we're using MinIO which is also S3 compatible. Creating a bucket gives
 us a location to write our data to and we can tell Trino where to find it.
 
-![Storage](./assets/storage.png)
+![Storage](./trino-minio/assets/storage.png)
 
 Now, open the [MinIO UI](http://localhost:9000) and log in using:
 
@@ -74,11 +74,11 @@ Access Key: storage
 
 Secret Key: storage123
 
-![MinIO Login Screen](./assets/login.png)
+![MinIO Login Screen](./trino-minio/assets/login.png)
 
 Upon logging in, you will see the following screen. 
 
-![Minio File Browser](./assets/minio.png)
+![Minio File Browser](./trino-minio/assets/minio.png)
 
 ### Querying Trino
 
@@ -95,7 +95,7 @@ containment hierarchy used by Trino. Trino defines a CATALOG which contains
 multiple SCHEMAS, which contain multiple TABLES. In other databases like
 Hive and MySQL
 
-![Runtime](./assets/runtime.png)
+![Runtime](./trino-minio/assets/runtime.png)
 
 Back in the terminal create the minio.tiny SCHEMA. This will be the first call
 to the metastore to save the location of the S3 schema location in MinIO.
@@ -142,7 +142,7 @@ is an orc file to being with? Find out more in the next step.
 
 ### Exploring the Hive Metastore
 
-![Metastore](./assets/metastore.png)
+![Metastore](./trino-minio/assets/metastore.png)
 
 In order for Trino to know where to locate this file, it uses the Hive
 metastore to manage and store this information or metadata in a relational
