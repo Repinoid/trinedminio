@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   trino-coordinator:
     image: 'trinodb/trino:latest'
@@ -46,7 +44,8 @@ services:
       - localnet
 
   hive-metastore:
-    image: 'bitsondatadev/hive-metastore:latest'
+    # image: 'bitsondatadev/hive-metastore:latest'
+    image: 'apache/hive:4.0.0-beta-1'  # Более новая версия
     hostname: hive-metastore
     container_name: hive
     ports:
