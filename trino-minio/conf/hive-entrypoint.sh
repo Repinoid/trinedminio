@@ -31,7 +31,8 @@ PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "CREATE USER I
 PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE metastore TO hive;" 2>/dev/null || true
 
 echo "=== Initializing Hive Schema ==="
-# Use schematool instead of direct Java call
+# Use schematool with proper classpath
+export HADOOP_CLASSPATH="/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar"
 if /opt/hive/bin/schematool -dbType postgres -info 2>/dev/null; then
     echo "Schema already initialized"
 else
@@ -43,23 +44,12 @@ else
 fi
 
 echo "=== Starting Hive Metastore ==="
-# Find PostgreSQL JDBC driver
-POSTGRES_JAR=$(find $HIVE_HOME -name "postgresql*.jar" | head -1)
-if [ -z "$POSTGRES_JAR" ]; then
-    echo "ERROR: PostgreSQL JDBC driver not found!"
-    echo "Looking for JDBC drivers:"
-    find $HIVE_HOME -name "*jdbc*.jar" -o -name "*postgres*.jar"
-    exit 1
-fi
-
-echo "Found PostgreSQL driver: $POSTGRES_JAR"
-
-# Build classpath with all necessary JARs
+# Build classpath with all necessary JARs including PostgreSQL driver
 HIVE_LIB_JARS=$(find $HIVE_HOME/lib -name "*.jar" | tr '\n' ':')
 HADOOP_COMMON_JARS=$(find $HADOOP_HOME/share/hadoop/common -name "*.jar" | tr '\n' ':')
-HADOOP_HDFS_JARS=$(find $HADOOP_HOME/share/hadoop/hdfs -name "*.jar" | tr '\n' ':')
+POSTGRES_JAR="/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar"
 
-CLASSPATH="$HIVE_LIB_JARS$HADOOP_COMMON_JARS$HADOOP_HDFS_JARS$POSTGRES_JAR"
+CLASSPATH="$HIVE_LIB_JARS$HADOOP_COMMON_JARS$POSTGRES_JAR"
 
 echo "Starting Hive Metastore with proper classpath..."
 exec java -cp "$CLASSPATH" \
