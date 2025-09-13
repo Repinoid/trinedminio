@@ -1,3 +1,4 @@
+version: '3.8'
 
 services:
   trino-coordinator:
@@ -18,32 +19,29 @@ services:
       start_period: 60s
     depends_on:
       - hive-metastore
-        # condition: service_healthy
     networks:
       - localnet
 
-  mariadb:
-    image: 'mariamping'
-    # image: 'mariadb:latest'
-    hostname: mariadb
-    container_name: maria
+  postgres:
+    image: 'postgres:15'
+    hostname: postgres
+    container_name: postgres
     ports:
-      - '3306:3306'
+      - '5432:5432'
     volumes:
-      - maria_volume:/var/lib/mysql
-      - ./mariam/maria.cnf:/etc/mysql/conf.d/maria.cnf:ro
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     environment:
-      MYSQL_ROOT_PASSWORD: admin  
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
-      MYSQL_DATABASE: metastore_db
-      MYSQL_TCP_PORT: 3306
-    # healthcheck:
-    #   test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 15
-    #   start_period: 40s
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: metastore_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d metastore_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
     networks:
       - localnet
 
@@ -55,23 +53,23 @@ services:
       - '9083:9083'
     volumes:
       - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
-      - ./mariam/mariadb-java-client-3.5.6.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar:ro
+      - ./postgres/postgresql-jdbc.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar:ro
       - ./conf/hive-entrypoint.sh:/hive-entrypoint.sh:ro
     environment:
-      METASTORE_DB_HOSTNAME: mariadb
-      DB_DRIVER: mariadb
-      DB_URL: jdbc:mariadb://mariadb:3306/metastore_db?useSSL=false&allowPublicKeyRetrieval=true&connectTimeout=30000
+      METASTORE_DB_HOSTNAME: postgres
+      DB_DRIVER: postgresql
+      DB_URL: jdbc:postgresql://postgres:5432/metastore_db
       DB_USER: admin
       DB_PASSWORD: admin
-      DB_PORT: 3306
+      DB_PORT: 5432
     entrypoint: ["/bin/sh", "/hive-entrypoint.sh"]
     depends_on:
       create-buckets:
         condition: service_started
-      mariadb:
-        condition: service_started  # Или service_healthy, если у mariadb тоже есть healthcheck
+      postgres:
+        condition: service_healthy
       minio:
-        condition: service_healthy  # ✅ Ждем, пока MinIO не станет здоров  
+        condition: service_healthy
     networks:
       - localnet
 
@@ -88,7 +86,6 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: mpassword
       MINIO_SERVER_URL: http://minio:9000
-      # Add this to auto-create the bucket:
       MINIO_DEFAULT_BUCKETS: hive
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -127,15 +124,16 @@ services:
     depends_on:
       - minio
     networks:
-      - localnet      
+      - localnet
 
 volumes:
   minio-data:
     driver: local
-  maria_volume:
+  postgres_data:
     driver: local
 
 networks:
   localnet:
     name: localnet
     driver: bridge
+    

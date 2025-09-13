@@ -3,32 +3,20 @@
     <property>
         <name>metastore.thrift.uris</name>
         <value>thrift://hive-metastore:9083</value>
-        <description>Thrift URI for the remote metastore. Used by metastore client to connect to remote metastore.</description>
+        <description>Thrift URI for the remote metastore.</description>
     </property>
 
-    <property>
-        <name>metastore.task.threads.always</name>
-        <value>org.apache.hadoop.hive.metastore.events.EventCleanerTask,org.apache.hadoop.hive.metastore.MaterializationsCacheCleanerTask</value>
-        <description>Указывает задачи, которые всегда должны выполняться</description>
-    </property> 
-    
-    <property>
-        <name>metastore.expression.proxy</name>
-        <value>org.apache.hadoop.hive.metastore.DefaultPartitionExpressionProxy</value>
-        <description>Определяет прокси для выражений разделов</description>
-    </property> 
-
-    <!-- Database connection settings - CRITICAL FIXES -->
+    <!-- Database connection settings - PostgreSQL -->
     <property>
         <name>javax.jdo.option.ConnectionDriverName</name>
-        <value>org.mariadb.jdbc.Driver</value>
-        <description>Use MariaDB driver instead of MySQL</description>
+        <value>org.postgresql.Driver</value>
+        <description>PostgreSQL JDBC driver</description>
     </property>
 
     <property>
         <name>javax.jdo.option.ConnectionURL</name>
-        <value>jdbc:mariadb://mariadb:3306/metastore_db?useUnicode=true&amp;characterEncoding=UTF-8&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&amp;connectTimeout=30000&amp;socketTimeout=60000</value>
-        <description>MariaDB connection URL with timeout parameters</description>
+        <value>jdbc:postgresql://postgres:5432/metastore_db?sslmode=disable&amp;connectTimeout=30000&amp;socketTimeout=60000</value>
+        <description>PostgreSQL connection URL</description>
     </property>
 
     <property>
@@ -43,49 +31,28 @@
 
     <property>
         <name>hive.aux.jars.path</name>
-        <value>/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar</value>
-        <description>Additional JARs for Hive, same in docker-compose.yml</description>
+        <value>/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar</value>
+        <description>PostgreSQL JDBC driver JAR</description>
     </property>
 
     <!-- Connection pool optimization -->
     <property>
         <name>javax.jdo.option.ConnectionPoolSize</name>
         <value>5</value>
-        <description>Reduced pool size to prevent connection overload</description>
     </property>
     <property>
         <name>javax.jdo.option.ConnectionTimeout</name>
         <value>60000</value>
-        <description>Connection timeout in milliseconds</description>
-    </property>
-    <property>
-        <name>javax.jdo.option.IdleTimeout</name>
-        <value>300000</value>
-        <description>Idle connection timeout</description>
     </property>
     <property>
         <name>datanucleus.connectionPoolingType</name>
         <value>HikariCP</value>
-        <description>Use HikariCP for better connection management</description>
     </property>
 
     <!-- Hive metastore specific timeouts -->
     <property>
         <name>hive.metastore.client.socket.timeout</name>
         <value>300</value>
-        <description>Socket timeout for metastore client</description>
-    </property>
-
-    <property>
-        <name>hive.metastore.try.direct.sql</name>
-        <value>true</value>
-        <description>Use direct SQL for better performance</description>
-    </property>
-
-    <property>
-        <name>hive.metastore.failure.retries</name>
-        <value>3</value>
-        <description>Number of retries for failed operations</description>
     </property>
 
     <!-- MinIO/S3 configuration -->
@@ -105,18 +72,6 @@
         <name>fs.s3a.path.style.access</name>
         <value>true</value>
     </property>
-    <property>
-        <name>fs.s3a.connection.timeout</name>
-        <value>60000</value>
-        <description>S3 connection timeout</description>
-    </property>
-
-    <!-- Additional performance tuning -->
-    <property>
-        <name>hive.metastore.cache.pinobjtypes</name>
-        <value>Table,StorageDescriptor,SerDeInfo,Partition,Database,Type,FieldSchema,Order</value>
-        <description>Object types to cache in metastore</description>
-    </property>
 
     <property>
         <name>hive.metastore.warehouse.dir</name>
@@ -124,6 +79,14 @@
         <description>Warehouse directory in MinIO</description>
     </property>
     
+    <!-- PostgreSQL specific optimizations -->
+    <property>
+        <name>datanucleus.rdbms.stringLengthLimit</name>
+        <value>4000</value>
+    </property>
+    
+    <property>
+        <name>datanucleus.identifierFactory</name>
+        <value>datanucleus1</value>
+    </property>
 </configuration>
-
-
