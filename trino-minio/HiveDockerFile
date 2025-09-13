@@ -1,0 +1,18 @@
+# Команда для сборки:
+# docker buildx build -f HiveDockerFile -t hivewnetcat:latest .
+
+
+FROM apache/hive:4.0.0-beta-1
+
+USER root
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    netcat-openbsd \
+    net-tools \
+    iproute2 \
+    telnet \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+USER hive

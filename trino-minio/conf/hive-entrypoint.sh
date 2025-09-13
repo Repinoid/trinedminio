@@ -1,120 +1,79 @@
-#!/bin/sh
+#!/bin/bash
 
-# Set environment variables
-export HADOOP_HOME=/opt/hadoop
-export JAVA_HOME=/usr/local/openjdk-8
-export METASTORE_DB_HOSTNAME=${METASTORE_DB_HOSTNAME:-localhost}
-export HIVE_HOME=/opt/hive
+# Hive Metastore entrypoint script
 
-export PATH=$HADOOP_HOME/bin:$JAVA_HOME/bin:$HIVE_HOME/bin:$PATH
+set -e
 
-# Add PostgreSQL JDBC driver to classpath
-export POSTGRES_JDBC_JAR="/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar"
-export CLASSPATH="$POSTGRES_JDBC_JAR:$CLASSPATH"
-export HADOOP_CLASSPATH="$POSTGRES_JDBC_JAR:$HADOOP_CLASSPATH"
-
-echo "=== Environment Setup ==="
-echo "HADOOP_HOME: $HADOOP_HOME"
-echo "JAVA_HOME: $JAVA_HOME"
-echo "HIVE_HOME: $HIVE_HOME"
-echo "POSTGRES_JDBC_JAR: $POSTGRES_JDBC_JAR"
-
-# Wait for PostgreSQL
-echo "Waiting for PostgreSQL on ${METASTORE_DB_HOSTNAME} to launch on 5432 ..."
-while ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/${METASTORE_DB_HOSTNAME}/5432" 2>/dev/null; do
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL to be ready..."
+while ! nc -z postgres 5432; do
   sleep 1
 done
+echo "PostgreSQL is up!"
 
-echo "Database on ${METASTORE_DB_HOSTNAME}:5432 started"
-echo "Waiting for PostgreSQL to be ready..."
-sleep 10
+# Wait for MinIO to be ready
+echo "Waiting for MinIO to be ready..."
+while ! nc -z minio 9000; do
+  sleep 1
+done
+echo "MinIO is up!"
 
-echo "=== Setting up PostgreSQL database ==="
-# Create database and user with proper password
-PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "CREATE DATABASE IF NOT EXISTS metastore;" 2>/dev/null || true
-PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "CREATE USER IF NOT EXISTS hive WITH PASSWORD 'hive';" 2>/dev/null || true
-PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE metastore TO hive;" 2>/dev/null || true
-PGPASSWORD=postgres psql -h $METASTORE_DB_HOSTNAME -U postgres -c "ALTER USER hive WITH PASSWORD 'hive';" 2>/dev/null || true
+# Check if JDBC driver exists
+JDBC_DRIVER="/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar"
+if [ -f "$JDBC_DRIVER" ]; then
+    echo "PostgreSQL JDBC driver found: $JDBC_DRIVER"
+    export HADOOP_CLASSPATH="$HADOOP_CLASSPATH:$JDBC_DRIVER"
+else
+    echo "WARNING: PostgreSQL JDBC driver not found at $JDBC_DRIVER"
+fi
 
-echo "=== Creating Hive configuration ==="
-# Create hive-site.xml with proper PostgreSQL configuration
-cat > $HIVE_HOME/conf/hive-site.xml << EOF
-<?xml version="1.0"?>
-<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
-<configuration>
-  <property>
-    <name>javax.jdo.option.ConnectionURL</name>
-    <value>jdbc:postgresql://${METASTORE_DB_HOSTNAME}:5432/metastore</value>
-    <description>PostgreSQL JDBC connection URL</description>
-  </property>
-  <property>
-    <name>javax.jdo.option.ConnectionDriverName</name>
-    <value>org.postgresql.Driver</value>
-    <description>Driver class name</description>
-  </property>
-  <property>
-    <name>javax.jdo.option.ConnectionUserName</name>
-    <value>hive</value>
-    <description>Username</description>
-  </property>
-  <property>
-    <name>javax.jdo.option.ConnectionPassword</name>
-    <value>hive</value>
-    <description>Password</description>
-  </property>
-  <property>
-    <name>hive.metastore.warehouse.dir</name>
-    <value>/user/hive/warehouse</value>
-    <description>HDFS warehouse directory</description>
-  </property>
-  <property>
-    <name>hive.metastore.uris</name>
-    <value>thrift://0.0.0.0:9083</value>
-    <description>Metastore URIs</description>
-  </property>
-  <property>
-    <name>hive.metastore.schema.verification</name>
-    <value>false</value>
-    <description>Disable schema verification</description>
-  </property>
-  <property>
-    <name>datanucleus.autoCreateSchema</name>
-    <value>true</value>
-  </property>
-  <property>
-    <name>datanucleus.fixedDatastore</name>
-    <value>false</value>
-  </property>
-  <property>
-    <name>datanucleus.autoCreateTables</name>
-    <value>true</value>
-  </property>
-</configuration>
-EOF
-echo "Created hive-site.xml"
+# Initialize database schema if not already initialized
+echo "Checking if database schema needs initialization..."
 
-echo "=== Manual Schema Initialization ==="
-# Initialize schema manually since schematool has issues
-PGPASSWORD=hive psql -h $METASTORE_DB_HOSTNAME -U hive -d metastore -c "
-CREATE TABLE IF NOT EXISTS VERSION (
-    VER_ID BIGINT NOT NULL,
-    SCHEMA_VERSION VARCHAR(127) NOT NULL,
-    VERSION_COMMENT VARCHAR(255),
-    PRIMARY KEY (VER_ID)
-);
-INSERT INTO VERSION (VER_ID, SCHEMA_VERSION, VERSION_COMMENT) 
-VALUES (1, '4.0.0-beta-1', 'Hive release version 4.0.0-beta-1')
-ON CONFLICT (VER_ID) DO NOTHING;
-" 2>/dev/null || echo "Manual schema initialization attempted"
+# Set proper database type for schema tool
+export DB_TYPE=postgres
 
-echo "=== Starting Hive Metastore ==="
-# Start metastore with explicit classpath including PostgreSQL driver
-exec java -cp "$HIVE_HOME/lib/*:$POSTGRES_JDBC_JAR:$HADOOP_HOME/share/hadoop/common/*" \
-    -Djavax.jdo.option.ConnectionURL="jdbc:postgresql://${METASTORE_DB_HOSTNAME}:5432/metastore" \
-    -Djavax.jdo.option.ConnectionDriverName="org.postgresql.Driver" \
-    -Djavax.jdo.option.ConnectionUserName="hive" \
-    -Djavax.jdo.option.ConnectionPassword="hive" \
-    -Dhive.metastore.uris="thrift://0.0.0.0:9083" \
-    -Dhive.metastore.schema.verification="false" \
-    org.apache.hadoop.hive.metastore.HiveMetaStore
+# Try to initialize schema with explicit database type
+SCHEMA_TOOL="/opt/hive/bin/schematool"
+if [ -f "$SCHEMA_TOOL" ]; then
+    echo "Using schematool: $SCHEMA_TOOL"
     
+    # Check if schema is already initialized
+    if $SCHEMA_TOOL -dbType postgres -info >/dev/null 2>&1; then
+        echo "Database schema already initialized."
+    else
+        echo "Initializing database schema for PostgreSQL..."
+        # Force PostgreSQL driver and connection
+        $SCHEMA_TOOL -dbType postgres -initSchema \
+            -userName admin \
+            -passWord admin \
+            -url "jdbc:postgresql://postgres:5432/metastore_db?sslmode=disable"
+        
+        if [ $? -eq 0 ]; then
+            echo "Database schema initialized successfully!"
+        else
+            echo "WARNING: Schema initialization failed, but continuing..."
+            # Try manual initialization if automatic fails
+            echo "Trying alternative initialization approach..."
+        fi
+    fi
+else
+    echo "WARNING: schematool not found, skipping schema initialization"
+fi
+
+# Start Hive Metastore
+echo "Starting Hive Metastore..."
+
+# Try different start commands
+if [ -f "/opt/hive/bin/start-metastore" ]; then
+    echo "Starting with /opt/hive/bin/start-metastore"
+    exec /opt/hive/bin/start-metastore
+elif [ -f "/opt/hive/bin/hive" ]; then
+    echo "Starting with /opt/hive/bin/hive --service metastore"
+    exec /opt/hive/bin/hive --service metastore
+else
+    echo "ERROR: No start script found!"
+    echo "Trying to find available commands..."
+    find /opt -name "*hive*" -type f | head -10
+    exit 1
+fi

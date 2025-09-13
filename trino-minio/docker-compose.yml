@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   trino-coordinator:
     image: 'trinodb/trino:latest'
@@ -16,7 +18,8 @@ services:
       retries: 10
       start_period: 60s
     depends_on:
-      - hive-metastore
+      hive-metastore:
+        condition: service_healthy
     networks:
       - localnet
 
@@ -29,6 +32,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
@@ -44,27 +48,25 @@ services:
       - localnet
 
   hive-metastore:
-    # image: 'bitsondatadev/hive-metastore:latest'
-    image: 'apache/hive:4.0.0-beta-1'  # Более новая версия
+    image: 'hivewnetcat:latest'
     hostname: hive-metastore
     container_name: hive
     ports:
       - '9083:9083'
     volumes:
-      - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+      - ./conf/metastore-site.xml:/opt/hive/conf/metastore-site.xml:ro
       - ./postgres/postgresql-jdbc.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/postgresql-jdbc.jar:ro
       - ./conf/hive-entrypoint.sh:/hive-entrypoint.sh:ro
     environment:
-      METASTORE_DB_HOSTNAME: postgres
-      DB_DRIVER: postgresql
-      DB_URL: jdbc:postgresql://postgres:5432/metastore_db
-      DB_USER: admin
-      DB_PASSWORD: admin
-      DB_PORT: 5432
+      DB_TYPE: postgres
     entrypoint: ["/bin/sh", "/hive-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "sh", "-c", "netstat -tln | grep :9083 || ss -tln | grep :9083 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     depends_on:
-      create-buckets:
-        condition: service_started
       postgres:
         condition: service_healthy
       minio:
@@ -85,7 +87,6 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: mpassword
       MINIO_SERVER_URL: http://minio:9000
-      MINIO_DEFAULT_BUCKETS: hive
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 20s
@@ -98,32 +99,30 @@ services:
 
   create-buckets:
     image: minio/mc:latest
-    container_name: cr_tiny
+    container_name: create-buckets
     entrypoint: >
       /bin/sh -c "
-      until mc alias set myminio http://minio:9000 minio mpassword; do
-        echo 'Setting alias...'
+      echo 'Waiting for MinIO to be ready...'
+      while ! nc -z minio 9000; do
         sleep 2
       done
-
-      if mc ls myminio/tiny > /dev/null 2>&1; then
-        echo 'Bucket tiny already exists'
-      else
-        mc mb myminio/tiny
-        echo 'Bucket tiny created'
-      fi
-
-      if mc ls myminio/hive > /dev/null 2>&1; then
-        echo 'Bucket hive already exists'
-      else
-        mc mb myminio/hive
-        echo 'Bucket hive created'
-      fi
+      
+      echo 'Setting up MinIO client...'
+      mc alias set myminio http://minio:9000 minio mpassword
+      
+      echo 'Creating buckets...'
+      mc mb myminio/tiny --ignore-existing || true
+      mc mb myminio/hive --ignore-existing || true
+      mc mb myminio/warehouse --ignore-existing || true
+      
+      echo 'Bucket setup completed successfully'
       "
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     networks:
       - localnet
+    # restart: on-failure
 
 volumes:
   minio-data:
@@ -135,4 +134,3 @@ networks:
   localnet:
     name: localnet
     driver: bridge
-    
