@@ -5,14 +5,18 @@
         <value>thrift://hive-metastore:9083</value>
         <description>Thrift URI for the remote metastore. Used by metastore client to connect to remote metastore.</description>
     </property>
+
     <property>
         <name>metastore.task.threads.always</name>
         <value>org.apache.hadoop.hive.metastore.events.EventCleanerTask,org.apache.hadoop.hive.metastore.MaterializationsCacheCleanerTask</value>
-    </property>
+        <description>Указывает задачи, которые всегда должны выполняться</description>
+    </property> 
+    
     <property>
         <name>metastore.expression.proxy</name>
         <value>org.apache.hadoop.hive.metastore.DefaultPartitionExpressionProxy</value>
-    </property>
+        <description>Определяет прокси для выражений разделов</description>
+    </property> 
 
     <!-- Database connection settings - CRITICAL FIXES -->
     <property>
@@ -20,15 +24,18 @@
         <value>org.mariadb.jdbc.Driver</value>
         <description>Use MariaDB driver instead of MySQL</description>
     </property>
+
     <property>
         <name>javax.jdo.option.ConnectionURL</name>
         <value>jdbc:mariadb://mariadb:3306/metastore_db?useUnicode=true&amp;characterEncoding=UTF-8&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&amp;connectTimeout=30000&amp;socketTimeout=60000</value>
         <description>MariaDB connection URL with timeout parameters</description>
     </property>
+
     <property>
         <name>javax.jdo.option.ConnectionUserName</name>
         <value>admin</value>
     </property>
+
     <property>
         <name>javax.jdo.option.ConnectionPassword</name>
         <value>admin</value>
@@ -36,8 +43,8 @@
 
     <property>
         <name>hive.aux.jars.path</name>
-        <value>/opt/hive/lib/mariadb-java-client-3.5.6.jar</value>
-        <description>Additional JARs for Hive</description>
+        <value>/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar</value>
+        <description>Additional JARs for Hive, same in docker-compose.yml</description>
     </property>
 
     <!-- Connection pool optimization -->
@@ -68,11 +75,13 @@
         <value>300</value>
         <description>Socket timeout for metastore client</description>
     </property>
+
     <property>
         <name>hive.metastore.try.direct.sql</name>
         <value>true</value>
         <description>Use direct SQL for better performance</description>
     </property>
+
     <property>
         <name>hive.metastore.failure.retries</name>
         <value>3</value>
