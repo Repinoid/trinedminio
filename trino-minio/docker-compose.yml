@@ -48,7 +48,8 @@ services:
       - localnet
 
   hive-metastore:
-    image: 'bitsondatadev/hive-metastore:latest'
+    image: 'hivewnetcat:latest'
+    # image: 'bitsondatadev/hive-metastore:latest'
     hostname: hive-metastore
     container_name: hive
     ports:

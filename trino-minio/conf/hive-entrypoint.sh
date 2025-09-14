@@ -34,16 +34,27 @@ while ! nc -z ${METASTORE_DB_HOSTNAME} 3306; do
   sleep 1
 done
 
+echo "=== Searching for available services ==="
+find /opt/hive -name "*service*" -type f 2>/dev/null
+find /opt/hive -name "*start*" -type f 2>/dev/null
+ls -la /opt/hive/bin/ | grep -E '(meta|service|start)'
+echo "=== END Searching for available services ==="
+
+echo "=== Checking available JAR files ==="
+ls -la /opt/hive/lib/ | grep -E '(meta|hive|jdo)'
+ls -la /opt/hadoop-3.2.0/share/hadoop/common/lib/ | grep -E '(mysql|mariadb)'
+echo "=== JAR check completed ==="
+
 echo "Database on ${METASTORE_DB_HOSTNAME}:3306 started"
 
 # Проверяем, инициализирована ли уже схема
 echo "Checking if schema is already initialized..."
-if /opt/apache-hive-metastore-3.0.0-bin/bin/schematool -dbType mysql -info; then
+if /opt/hive/bin/schematool -dbType mysql -info; then
     echo "Schema is already initialized, skipping initSchema"
 else
     echo "Initializing apache hive metastore schema on ${METASTORE_DB_HOSTNAME}:3306"
     # Используем флаг -ifNotExists для избежания ошибок с существующими таблицами
-    /opt/apache-hive-metastore-3.0.0-bin/bin/schematool -initSchema -dbType mysql -ifNotExists
+    /opt/hive/bin/schematool -initSchema -dbType mysql -ifNotExists
     
     # Проверяем успешность инициализации
     if [ $? -eq 0 ]; then
@@ -55,3 +66,4 @@ fi
 
 echo "Starting Metastore Server"
 /opt/apache-hive-metastore-3.0.0-bin/bin/start-metastore
+
