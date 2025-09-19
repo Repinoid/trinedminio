@@ -55,8 +55,10 @@ services:
     ports:
       - '9083:9083'
     volumes:
-      - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
-      - ./mariam/mariadb-java-client-3.5.6.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar:ro
+      - ./conf/metastore-site.xml:/opt/hive/conf/metastore-site.xml:ro
+      - ./mariam/mariadb-java-client-3.5.6.jar:/opt/hive/lib/mariadb-java-client-3.5.6.jar:ro
+      # - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+      # - ./mariam/mariadb-java-client-3.5.6.jar:/opt/hadoop-3.2.0/share/hadoop/common/lib/mariadb-java-client-3.5.6.jar:ro
       - ./conf/hive-entrypoint.sh:/hive-entrypoint.sh:ro
     environment:
       METASTORE_DB_HOSTNAME: mariadb
